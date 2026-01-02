@@ -1,0 +1,102 @@
+-- ====================================================================
+-- ΣΥΓΚΕΝΤΡΩΤΙΚΟ ΑΡΧΕΙΟ SQL queries
+-- ====================================================================
+
+[cite_start]-- 1. Διαθεσιμότητα Θέσεων σε Μαθήματα [cite: 1]
+SELECT 
+    l.lesson_id, 
+    l.level, 
+    l.max_capacity, 
+    COUNT(scl.payment_id) AS enrolled_students,
+    (l.max_capacity - COUNT(scl.payment_id)) AS remaining_spots
+FROM Lesson l
+LEFT JOIN Subscription_concerning_Lesson scl ON l.lesson_id = scl.lesson_id
+GROUP BY l.lesson_id;
+
+[cite_start]-- 2. Διαγραφή Ορφανών Πληρωμών [cite: 2]
+DELETE FROM Payment
+WHERE payment_id NOT IN (SELECT payment_id FROM Reservation)
+  AND payment_id NOT IN (SELECT payment_id FROM Subscription)
+  AND payment_id NOT IN (SELECT payment_id FROM Tournament_fee);
+
+[cite_start]-- 3. Καταμέτρηση Συμμετοχών σε Τουρνουά [cite: 3]
+SELECT t.name AS Tournament_Name, COUNT(tf.payment_id) AS Total_Participants
+FROM Tournament t
+JOIN Tournament_fee tf ON t.tournament_id = tf.tournament_id
+WHERE t.tournament_id = 1;
+
+[cite_start]-- 4. Εισαγωγή Μέλους (ID: 4) σε Τουρνουά [cite: 4, 5]
+INSERT INTO Payment (discount, payment_day, payment_method, member_id) 
+VALUES (1, '2025-11-20', 'Card', 4);
+INSERT INTO Tournament_fee (tournament_id, payment_id, cost) 
+VALUES (1, last_insert_rowid(), 12);
+
+[cite_start]-- 5. Εισαγωγή Νέων Μαθημάτων στο Γήπεδο 1 [cite: 6]
+INSERT INTO Lesson (level, max_capacity, start_datetime, end_datetime, court_id)
+VALUES 
+('Intermediate', 8, '2026-01-05 15:00:00', '2026-01-05 16:30:00', 1),
+('Beginner', 10, '2026-01-07 15:00:00', '2026-01-07 16:30:00', 1);
+
+[cite_start]-- 6. Έλεγχος Συντήρησης Γηπέδων (1-5) για το 2026 [cite: 7]
+SELECT court_id, description, start_datetime, end_datetime 
+FROM Maintenance 
+WHERE court_id IN (1, 2, 3, 4, 5) 
+AND start_datetime LIKE '2026-%';
+
+[cite_start]-- 7. Εγγραφή Μέλους (ID: 42) σε Μάθημα (ID: 1) [cite: 8, 9]
+INSERT INTO Payment (discount, payment_day, payment_method, member_id) 
+VALUES (0.5, '2026-01-02', 'Cash', 42);
+INSERT INTO Subscription (payment_id, cost) 
+VALUES (last_insert_rowid(), 20);
+INSERT INTO Subscription_concerning_Lesson (payment_id, lesson_id) 
+VALUES (last_insert_rowid(), 1);
+
+[cite_start]-- 8. Στατιστικά Μελών, Έσοδα και Κατάσταση (Member Status) [cite: 10, 11, 12, 13]
+SELECT 
+    m.first_name || ' ' || m.last_name AS Full_Name,
+    COUNT(DISTINCT r.payment_id) AS Total_Reservations,
+    COUNT(DISTINCT scl.lesson_id) AS Total_Lessons_Enrolled,
+    COUNT(DISTINCT tf.tournament_id) AS Tournaments_Played,
+    ROUND(SUM(DISTINCT 
+        CASE 
+            WHEN s.payment_id IS NOT NULL THEN s.cost * p.discount 
+            WHEN tf.payment_id IS NOT NULL THEN tf.cost * p.discount 
+            WHEN r.payment_id IS NOT NULL THEN r.cost * p.discount 
+            ELSE 0 
+        END
+    ), 2) AS Total_Revenue_Contributed,
+    CASE 
+        WHEN COUNT(DISTINCT r.payment_id) > 5 THEN 'VIP Player'
+        WHEN COUNT(DISTINCT tf.tournament_id) > 0 AND COUNT(DISTINCT scl.lesson_id) > 0 THEN 'Pro Student'
+        WHEN COUNT(DISTINCT scl.lesson_id) > 0 THEN 'Active Student'
+        WHEN COUNT(DISTINCT tf.tournament_id) > 0 THEN 'Tournament Competitor'
+        ELSE 'Casual Player'
+    END AS Member_Status
+FROM Member m
+JOIN Payment p ON m.member_id = p.member_id
+LEFT JOIN Subscription s ON p.payment_id = s.payment_id
+LEFT JOIN Subscription_concerning_Lesson scl ON s.payment_id = scl.payment_id
+LEFT JOIN Tournament_fee tf ON p.payment_id = tf.payment_id
+LEFT JOIN Reservation r ON p.payment_id = r.payment_id
+GROUP BY m.member_id
+ORDER BY Total_Revenue_Contributed DESC;
+
+[cite_start]-- 9. Μελλοντικό Πρόγραμμα (Γενικό ή ανά Γήπεδο) [cite: 14, 15]
+SELECT * FROM Global_Court_Schedule 
+WHERE datetime(start_datetime) > datetime('now')
+ORDER BY start_datetime;
+
+[cite_start]-- 10. Λίστα Μελών που είναι εγγεγραμμένα σε συγκεκριμένο Μάθημα (ID: 1) [cite: 16]
+SELECT 
+    m.member_id, 
+    m.first_name, 
+    m.last_name, 
+    m.phone,
+    l.level,
+    l.start_datetime
+FROM Member m
+JOIN Payment p ON m.member_id = p.member_id
+JOIN Subscription s ON p.payment_id = s.payment_id
+JOIN Subscription_concerning_Lesson scl ON s.payment_id = scl.payment_id
+JOIN Lesson l ON scl.lesson_id = l.lesson_id
+WHERE l.lesson_id = 1;
