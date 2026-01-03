@@ -17,6 +17,7 @@ def get_table_names():
 def select_table(table_name):
     with get_connection() as con:
         # Προσοχή: Χρήση μόνο για tables που ελέγξαμε ότι υπάρχουν (όχι user input)
+     #   table_name in 
         cursor = con.execute(f"SELECT * FROM {table_name}")
         colnames = [d[0] for d in cursor.description]
         return [dict(zip(colnames, row)) for row in cursor.fetchall()]
