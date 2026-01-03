@@ -1,185 +1,242 @@
 import sys
-from model import (get_table_names, select_table, get_member_stats, 
-                   get_lesson_availability, enroll_member_in_lesson, 
-                   delete_orphan_payments)
-from view import show_header, show_table, show_menu, show_success, show_error
+from model_3 import (select_table, get_table_names,create_member, get_member, update_member_field,
+    create_court, schedule_maintenance,create_tournament, create_match, record_match_result, get_upcoming_tournaments, register_member_to_tournament,
+    get_filtered_schedule, get_financial_stats, get_member_stats,get_lesson_availability, enroll_member_in_lesson, delete_orphan_payments,
+    create_reservation, get_member_reservations, update_reservation
+)
+from view_3 import (
+    show_header, show_table, show_schedule, show_menu, 
+    show_success, show_error, show_member_details, show_stats, show_tournaments
+)
 
-def view_tables_menu():
-    """Υπο-μενού για προβολή raw πινάκων"""
-    tables = get_table_names()
+def admin_manage_members():
     while True:
-        show_header("ΠΡΟΒΟΛΗ ΠΙΝΑΚΩΝ")
-        options = {str(i+1): t for i, t in enumerate(tables)}
-        options['0'] = "Επιστροφή"
-        show_menu(options)
+        show_header("ΔΙΑΧΕΙΡΙΣΗ ΜΕΛΩΝ")
+        print("1. Νέο Μέλος")
+        print("2. Προβολή/Επεξεργασία Μέλους")
+        print("0. Πίσω")
+        res = input("-> ").strip()
         
-        choice = input("Επιλογή: ").strip()
-        if choice == '0': break
+        if res == '0': break
         
-        if choice in options:
-            try:
-                data = select_table(options[choice])
-                show_table(data)
-            except Exception as e:
-                show_error(str(e))
+        try:
+            if res == '1':
+                data = {
+                    'first_name': input("Όνομα: "), 'last_name': input("Επώνυμο: "),
+                    'phone': input("Τηλέφωνο: "), 'mail': input("Email: "),
+                    'address': input("Διεύθυνση: "), 'dob': input("Ημ. Γέννησης (YYYY-MM-DD): ")
+                }
+                mid = create_member(data['first_name'], data['last_name'], data['phone'], 
+                                    data['mail'], data['address'], data['dob'])
+                show_success(f"Μέλος δημιουργήθηκε με ID: {mid}")
+            
+            elif res == '2':
+                mid = input("Δώσε ID Μέλους: ")
+                member = get_member(mid)
+                show_member_details(member)
+                
+                print("Θέλεις να επεξεργαστείς πεδίο; (Enter για όχι)")
+                print("Πεδία: first_name, last_name, phone, mail, address, date_of_birth")
+                field = input("Πεδίο: ").strip()
+                if field:
+                    val = input(f"Νέα τιμή για {field}: ")
+                    update_member_field(mid, field, val)
+                    show_success("Ενημερώθηκε.")
+        except Exception as e:
+            show_error(e)
 
-def menu_admin():
+def admin_manage_courts():
     while True:
-        show_header("ΣΥΣΤΗΜΑ TENNIS CLUB")
-        main_options = {
-            "1": "Προβολή Πινάκων",
-            "2": "Αναφορές & Στατιστικά",
-            "3": "Εγγραφή Μέλους σε Μάθημα",
-            "4": "Συντήρηση Βάσης",
-            "x": "Έξοδος"
-        }
-        show_menu(main_options)
-        
-        choice = input("Επιλογή: ").strip().lower()
+        show_header("ΔΙΑΧΕΙΡΙΣΗ ΓΗΠΕΔΩΝ")
+        print("1. Νέο Γήπεδο")
+        print("2. Προγραμματισμός Συντήρησης")
+        print("3. Προβολή Προγράμματος (Φίλτρα)")
+        print("0. Πίσω")
+        res = input("-> ").strip()
 
-        match choice :
-            case 'x':
-                print("Αντίο!")
-                break
+        if res == '0': break
 
-            case '1':
-                view_tables_menu()
+        try:
+            if res == '1':
+                create_court(input("Τύπος: "), input("Σχόλια: "))
+                show_success("Γήπεδο προστέθηκε.")
+            elif res == '2':
+                schedule_maintenance(input("ID Γηπέδου: "), input("Περιγραφή: "), 
+                                     input("Έναρξη (YYYY-MM-DD HH:MM): "), input("Λήξη: "))
+                show_success("Συντήρηση καταχωρήθηκε.")
+            elif res == '3':
+                cid = input("ID Γηπέδου (Enter για όλα): ").strip()
+                date = input("Ημερομηνία YYYY-MM-DD (Enter για όλες): ").strip()
+                cid = cid if cid else None
+                date = date if date else None
+                data = get_filtered_schedule(cid, date)
+                show_schedule(data)
+        except Exception as e:
+            show_error(e)
 
-            case '2':
-                # Υπο-μενού για αναφορές
-                show_header("ΑΝΑΦΟΡΕΣ")
-                print("A. Κατάσταση & Status Μελών")
-                print("B. Διαθεσιμότητα Μαθημάτων")
-                sub = input("Επιλογή (A/B): ").strip().upper()  
-                if sub == 'A':
-                    show_table(get_member_stats())
-                elif sub == 'B':
-                    show_table(get_lesson_availability())
+def admin_manage_tournaments():
+    while True:
+        show_header("TOYPNOYA & ΑΓΩΝΕΣ")
+        print("1. Νέο Τουρνουά")
+        print("2. Προσθήκη Αγώνα")
+        print("3. Καταγραφή Αποτελέσματος")
+        print("0. Πίσω")
+        res = input("-> ").strip()
 
-            case '3':
-                # Εγγραφή σε μάθημα (Insert σε 3 πίνακες)
-                show_header("ΕΓΓΡΑΦΗ ΣΕ ΜΑΘΗΜΑ")
-                try:
-                    m_id = input("ID Μέλους: ")
-                    l_id = input("ID Μαθήματος: ")
-                    cost = input("Ποσό Πληρωμής: ")
-                    
-                    # Κλήση της συνάρτησης του Model
-                    enroll_member_in_lesson(m_id, l_id, cost)
-                    show_success("Η εγγραφή και η πληρωμή ολοκληρώθηκαν!")
-                except Exception as e:
-                    show_error(f"Η εγγραφή απέτυχε: {e}")
-
-            case '4':
-                # Cleanup
-                try:
-                    count = delete_orphan_payments()
-                    show_success(f"Διαγράφηκαν {count} ορφανές πληρωμές.")
-                except Exception as e:
-                    show_error(str(e))
-
-            case _:
-                print("Αντίο!")
-                break
+        if res == '0': break
+        try:
+            if res == '1':
+                create_tournament(input("Όνομα: "), input("Κατηγορία: "), input("Από: "), input("Έως: "))
+                show_success("ΟΚ")
+            elif res == '2':
+                create_match(input("Tournament ID: "), input("Court ID: "), 
+                             input("Member 1 ID: "), input("Member 2 ID: "), 
+                             input("Start: "), input("End: "), input("Phase: "))
+                show_success("Αγώνας δημιουργήθηκε.")
+            elif res == '3':
+                record_match_result(input("Match ID: "), input("Score (x-x): "), 
+                                    input("Winner ID: "), input("Σχόλια: "))
+                show_success("Αποτέλεσμα καταγράφηκε.")
+        except Exception as e:
+            show_error(e)
 
 def menu_member():
+    # Ζητάμε το Member ID μία φορά κατά την είσοδο για ευκολία
+    mid = input("Παρακαλώ εισάγετε το Member ID σας για ταυτοποίηση: ").strip()
+    
     while True:
-        show_header("ΣΥΣΤΗΜΑ TENNIS CLUB")
-        main_options = {
-            "1": "Προβολή Πινάκων",
-            "2": "Αναφορές & Στατιστικά",
-            "3": "Εγγραφή Μέλους σε Μάθημα",
-            "4": "Συντήρηση Βάσης",
-            "x": "Έξοδος"
+        show_header(f"TENNIS CLUB - ΜΕΛΟΣ [ID: {mid}]")
+        options = {
+            "1": "Πρόγραμμα Γηπέδων (Schedule)",
+            "2": "Διαθεσιμότητα Μαθημάτων",
+            "3": "Εγγραφή σε Μάθημα",
+            "4": "Κράτηση Γηπέδου (Reservation)",
+            "5": "Οι Κρατήσεις μου / Τροποποίηση",
+            "6": "Εγγραφή σε Τουρνουά",
+            "x": "Αποσύνδεση"
         }
-        show_menu(main_options)
-        
-        choice = input("Επιλογή: ").strip().lower()
-
-        match choice :
-            case 'x':
-                print("Αντίο!")
-                break
-
-            case '1':
-                view_tables_menu()
-
-            case '2':
-                # Υπο-μενού για αναφορές
-                show_header("ΑΝΑΦΟΡΕΣ")
-                print("A. Κατάσταση & Status Μελών")
-                print("B. Διαθεσιμότητα Μαθημάτων")
-                sub = input("Επιλογή (A/B): ").strip().upper()  
-                if sub == 'A':
-                    show_table(get_member_stats())
-                elif sub == 'B':
-                    show_table(get_lesson_availability())
-
-            case '3':
-                # Εγγραφή σε μάθημα (Insert σε 3 πίνακες)
-                show_header("ΕΓΓΡΑΦΗ ΣΕ ΜΑΘΗΜΑ")
-                try:
-                    m_id = input("ID Μέλους: ")
-                    l_id = input("ID Μαθήματος: ")
-                    cost = input("Ποσό Πληρωμής: ")
-                    
-                    # Κλήση της συνάρτησης του Model
-                    enroll_member_in_lesson(m_id, l_id, cost)
-                    show_success("Η εγγραφή και η πληρωμή ολοκληρώθηκαν!")
-                except Exception as e:
-                    show_error(f"Η εγγραφή απέτυχε: {e}")
-
-            case '4':
-                # Cleanup
-                try:
-                    count = delete_orphan_payments()
-                    show_success(f"Διαγράφηκαν {count} ορφανές πληρωμές.")
-                except Exception as e:
-                    show_error(str(e))
-
-            case _:
-                print("Αντίο!")
-                break
-
-def admin_registration():
-        password = "admin"
-        while True:
-            show_header("ΣΥΝΔΕΣΗ")
-            user_pass = input("Εισάγεται κωδικό (ENTER για έξοδο):")
-            if user_pass == password:
-                menu_admin()
-                break
-            elif user_pass == "":
-                break
-            else:
-                print("Λανθασμένος κωδικός")
-
-def main():
-    while True:
-        show_header("ΣΥΝΔΕΣΗ")
-        main_options = {
-            "1": "Μέλος",
-            "2": "Admin",
-            "x": "Έξοδος"
-        }
-        show_menu(main_options)
-
+        show_menu(options)
         choice = input("Επιλογή: ").strip().lower()
 
         match choice:
             case '1':
-                menu_member()
+                try: show_schedule(get_filtered_schedule())
+                except Exception as e: show_error(e)
             
             case '2':
-                admin_registration()
+                try: show_table(get_lesson_availability())
+                except Exception as e: show_error(e)
+            
+            case '3':
+                try:
+                    cost = enroll_member_in_lesson(mid, input("ID Μαθήματος: "), input("Είσαι φοιτητής(0: Όχι, 1:Ναι): "), input("Ποσό πληρωμής:"), input("Τρόπος πληρωμής(Cash/Card):"))
+                    show_success("Εγγραφή επιτυχής! Kόστος?"(cost))
+                except Exception as e: show_error(e)
 
-            case 'x':
-                print("Αντίο!")
+            case '4': # Νέα Λειτουργία: Κράτηση
+                try:
+                    cid = input("ID Γηπέδου: ")
+                    date = input("Ημερομηνία (YYYY-MM-DD): ")
+                    start = input("Ώρα Έναρξης (HH:MM): ")
+                    end = input("Ώρα Λήξης (HH:MM): ")
+                    people = input("Αριθμός Ατόμων: ")
+                    create_reservation(mid, cid, date, start, end, people)
+                    show_success("Η κράτηση ολοκληρώθηκε!")
+                except Exception as e: show_error(e)
+
+            case '5': # Νέα Λειτουργία: Προβολή & Edit Κρατήσεων
+                try:
+                    my_res = get_member_reservations(mid)
+                    show_table(my_res)
+                    if my_res:
+                        action = input("Θέλετε να τροποποιήσετε κράτηση; (y/n): ").lower()
+                        if action == 'y':
+                            rid = input("ID Κράτησης: ")
+                            ndate = input("Νέα Ημ/νία: ")
+                            nstart = input("Νέα Έναρξη: ")
+                            nend = input("Νέα Λήξη: ")
+                            update_reservation(rid, ndate, nstart, nend)
+                            show_success("Η κράτηση ενημερώθηκε.")
+                except Exception as e: show_error(e)
+
+            case '6': # Νέα Λειτουργία: Τουρνουά
+                try:
+                    tours = get_upcoming_tournaments()
+                    show_tournaments(tours)
+                    if tours:
+                        tid = input("Επιλέξτε ID Τουρνουά για εγγραφή (Enter για ακύρωση): ")
+                        if tid:
+                            register_member_to_tournament(mid, tid)
+                            show_success("Εγγραφήκατε στο τουρνουά!")
+                except Exception as e: show_error(e)
+
+            case 'x': break
+            case _: print("Μη έγκυρη επιλογή.")
+
+def menu_admin():
+    while True:
+        show_header("TENNIS CLUB - ADMIN")
+        options = {
+            "1": "Διαχείριση Μελών (CRUD)",
+            "2": "Διαχείριση Γηπέδων & Προγράμματος",
+            "3": "Διαχείριση Τουρνουά",
+            "4": "Οικονομικά & Στατιστικά",
+            "5": "Προβολή Raw Πινάκων",
+            "6": "Συντήρηση Βάσης (Cleanup)",
+            "x": "Αποσύνδεση"
+        }
+        show_menu(options)
+        choice = input("Επιλογή: ").strip().lower()
+
+        match choice:
+            case '1': admin_manage_members()
+            case '2': admin_manage_courts()
+            case '3': admin_manage_tournaments()
+            case '4':
+                print("\n[A] Στατιστικά Mελών (Status)")
+                print("[B] Οικονομικά Στοιχεία")
+                sub = input("-> ").upper()
+                try:
+                    if sub == 'A': show_table(get_member_stats())
+                    else: show_stats(get_financial_stats())
+                except Exception as e: show_error(e)
+            case '5':
+                tables = get_table_names()
+                print("\nΔιαθέσιμοι Πίνακες:")
+                for i, t in enumerate(tables): print(f"{i+1}. {t}")
+                idx = input("Επιλέξτε (Enter για πίσω): ")
+                if idx.isdigit() and 1 <= int(idx) <= len(tables):
+                    try: show_table(select_table(tables[int(idx)-1]))
+                    except Exception as e: show_error(e)
+            case '6':
+                try:
+                    c = delete_orphan_payments()
+                    show_success(f"Διαγράφηκαν {c} ορφανές πληρωμές.")
+                except Exception as e: show_error(e)
+            case 'x': break
+            case _: print("Μη έγκυρη επιλογή.")
+
+def admin_login():
+    if input("Κωδικός Admin (admin): ") == "admin":
+        menu_admin()
+    else:
+        show_error("Λάθος κωδικός.")
+
+def main():
+    while True:
+        show_header("ΚΕΝΤΡΙΚΗ ΕΙΣΟΔΟΣ")
+        print("1. Είσοδος Μέλους")
+        print("2. Είσοδος Admin")
+        print("x. Έξοδος")
+        
+        choice = input("Επιλογή: ").strip().lower()
+        match choice:
+            case '1': menu_member()
+            case '2': admin_login()
+            case 'x': 
+                print("Έξοδος...")
                 break
-
-            case _:
-                print("Αντίο!")
-                break      
+            case _: print("Λάθος επιλογή.")
 
 if __name__ == "__main__":
     main()
