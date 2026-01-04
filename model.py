@@ -300,13 +300,33 @@ def get_financial_stats():
     con = get_connection()
     try:
         stats = {}
+        
+        # 1. Υπολογισμός Συνολικών Μελών
         cur = con.execute("SELECT COUNT(*) as count FROM Member")
         res = cur.fetchone()
         stats['total_members'] = res['count'] if res else 0
-        
-        cur = con.execute("SELECT SUM(amount) as total FROM Payment")
+
+        sql_revenue = """
+            SELECT 
+                (SELECT IFNULL(SUM(r.cost * p.discount), 0) 
+                 FROM Reservation r 
+                 JOIN Payment p ON r.payment_id = p.payment_id)
+                +
+                (SELECT IFNULL(SUM(s.cost * p.discount), 0) 
+                 FROM Subscription s 
+                 JOIN Payment p ON s.payment_id = p.payment_id)
+                +
+                (SELECT IFNULL(SUM(tf.cost * p.discount), 0) 
+                 FROM Tournament_fee tf 
+                 JOIN Payment p ON tf.payment_id = p.payment_id) 
+            as total
+        """
+        cur = con.execute(sql_revenue)
         res = cur.fetchone()
+        
+        # Επιστροφή αποτελέσματος (αν είναι None επιστρέφει 0.0)
         stats['total_revenue'] = res['total'] if res and res['total'] else 0.0
+        
         return stats
     finally:
         con.close()
