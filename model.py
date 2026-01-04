@@ -4,6 +4,12 @@ from datetime import datetime
 
 DB_NAME = "tennisclub.db"
 
+def to_null(value):
+    """Μετατρέπει το κενό string σε None για την SQLite."""
+    if isinstance(value, str) and not value.strip():
+        return None
+    return value
+
 def get_connection():
     if not os.path.exists(DB_NAME):
         print(f"[WARNING] Η βάση {DB_NAME} δεν βρέθηκε! Δημιουργείται νέα.")
@@ -38,6 +44,12 @@ def select_table(table_name):
 # ======================= MEMBER MANAGEMENT =======================
 
 def create_member(first_name, last_name, phone, mail, address, dob):
+    first_name= to_null(first_name)
+    last_name=to_null(last_name)
+    phone = to_null(phone)
+    mail = to_null(mail)
+    address = to_null(address)
+    dob = to_null(dob)
     con = get_connection()
     try:
         cur = con.execute("""
@@ -76,6 +88,8 @@ def update_member_field(member_id, field, value):
 # ======================= COURTS & RESERVATIONS (NEW) =======================
 
 def create_court(court_type, comments=""):
+    court_type = to_null(court_type)
+    comments = to_null(comments)
     con = get_connection()
     try:
         con.execute("INSERT INTO Court (type, comments) VALUES (?, ?)", (court_type, comments))
@@ -84,8 +98,14 @@ def create_court(court_type, comments=""):
         con.close()
 
 def schedule_maintenance(court_id, description, start, end):
+    court_id = to_null(court_id)
+    description = to_null(description)
+    start = to_null(start)
+    end = to_null(end)
     con = get_connection()
     try:
+        if not end:
+            end = None
         con.execute("""
             INSERT INTO Maintenance (court_id, description, start_datetime, end_datetime)
             VALUES (?, ?, ?, ?)
@@ -94,21 +114,29 @@ def schedule_maintenance(court_id, description, start, end):
     finally:
         con.close()
 
-def create_reservation(member_id, court_id, date, start_time, end_time, num_people, cost=20):
+def create_reservation(member_id, court_id, discount, start_time, end_time, num_people, payment_method):
     """Δημιουργεί κράτηση (Πληρωμή -> Κράτηση). Transactional."""
+    member_id = to_null(member_id)
+    court_id = to_null(court_id)
+    discount = to_null(discount)
+    start_time = to_null(start_time)
+    end_time = to_null(end_time)
+    num_people = to_null(num_people)
     con = get_connection()
     try:
+        if not payment_method: 
+            payment_method = "Cash"
         cur = con.cursor()
         # 1. Πληρωμή
-        cur.execute("INSERT INTO Payment (amount, payment_method, member_id) VALUES (?, 'Card', ?)", 
-                    (cost, member_id))
+        cur.execute("INSERT INTO Payment (discount, payment_method, member_id) VALUES (?, ?, ?)", 
+                    (discount, payment_method, member_id))
         payment_id = cur.lastrowid
 
         # 2. Κράτηση
         cur.execute("""
-            INSERT INTO Reservation (date, start_time, end_time, num_of_people, cost, member_id, court_id, payment_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (date, start_time, end_time, num_people, cost, member_id, court_id, payment_id))
+            INSERT INTO Reservation ( payment_id, start_datetime, end_datetime, num_of_people, court_id)
+            VALUES (?, ?, ?, ?, ?)
+        """, ( payment_id,start_time, end_time, num_people,court_id))
         
         con.commit()
         return cur.lastrowid
@@ -121,10 +149,11 @@ def create_reservation(member_id, court_id, date, start_time, end_time, num_peop
 def get_member_reservations(member_id):
     """Επιστρέφει τις μελλοντικές κρατήσεις ενός μέλους."""
     sql = """
-        SELECT reservation_id, date, start_time, end_time, court_id, cost 
-        FROM Reservation 
-        WHERE member_id = ? AND date >= date('now')
-        ORDER BY date, start_time
+        SELECT r.payment_id, r.start_datetime, r.end_datetime, r.cost, r.court_id
+        FROM Reservation AS r
+        JOIN Payment p ON r.payment_id = p.payment_id
+        WHERE p.member_id = ? AND r.start_datetime >= datetime('now')
+        ORDER BY r.start_datetime
     """
     con = get_connection()
     try:
@@ -133,15 +162,15 @@ def get_member_reservations(member_id):
     finally:
         con.close()
 
-def update_reservation(reservation_id, new_date, new_start, new_end):
+def update_reservation(reservation_id, new_start, new_end):
     """Τροποποίηση κράτησης."""
     con = get_connection()
     try:
         cur = con.execute("""
             UPDATE Reservation 
-            SET date = ?, start_time = ?, end_time = ? 
-            WHERE reservation_id = ?
-        """, (new_date, new_start, new_end, reservation_id))
+            SET start_datetime = ?, end_datetime = ? 
+            WHERE payment_id = ?
+        """, ( new_start, new_end, reservation_id))
         con.commit()
         if cur.rowcount == 0: raise LookupError("Η κράτηση δεν βρέθηκε.")
     finally:
@@ -150,6 +179,10 @@ def update_reservation(reservation_id, new_date, new_start, new_end):
 # ======================= TOURNAMENTS (NEW) =======================
 
 def create_tournament(name, category, start, end):
+    name = to_null(name)
+    category = to_null(category)
+    start = to_null(start)
+    end = to_null(end)
     con = get_connection()
     try:
         con.execute("""
@@ -168,22 +201,27 @@ def get_upcoming_tournaments():
     finally:
         con.close()
 
-def register_member_to_tournament(member_id, tournament_id, cost=50):
+def register_member_to_tournament(member_id, tournament_id,discount, payment_method):
     """Εγγραφή σε τουρνουά (Πληρωμή -> Tournament_fee). Transactional."""
+    member_id = to_null(member_id)
+    tournament_id = to_null(tournament_id)
+    discount = to_null(discount)
     con = get_connection()
     try:
+        if not payment_method: 
+            payment_method = "Cash"
         cur = con.cursor()
         # 1. Πληρωμή
-        cur.execute("INSERT INTO Payment (amount, payment_method, member_id) VALUES (?, 'Online', ?)", 
-                    (cost, member_id))
+        cur.execute("INSERT INTO Payment (discount, payment_method, member_id) VALUES (?, ?, ?)", 
+                    (discount,payment_method,member_id))
         payment_id = cur.lastrowid
 
         # 2. Εγγραφή (Tournament_fee)
         signup_date = datetime.now().strftime("%Y-%m-%d")
         cur.execute("""
-            INSERT INTO Tournament_fee (member_id, tournament_id, payment_id, cost, sign_up_date)
-            VALUES (?, ?, ?, ?, ?)
-        """, (member_id, tournament_id, payment_id, cost, signup_date))
+            INSERT INTO Tournament_fee (tournament_id, payment_id)
+            VALUES (?, ?)
+        """, (tournament_id, payment_id))
         
         con.commit()
     except Exception as e:
@@ -193,6 +231,13 @@ def register_member_to_tournament(member_id, tournament_id, cost=50):
         con.close()
 
 def create_match(tournament_id, court_id, member1, member2, start, end, phase="Group Stage"):
+    tournament_id = to_null(tournament_id)
+    court_id = to_null(court_id)
+    member1 = to_null(member1)
+    member2 = to_null(member2)
+    start = to_null(start)
+    end = to_null(end)  
+    phase = to_null(phase)
     con = get_connection()
     try:
         con.execute("""
@@ -215,9 +260,26 @@ def record_match_result(match_id, score, winner_id, comment=""):
         con.close()
 
 # ======================= SCHEDULE & STATS =======================
+def get_schedule(court_id=None, date=None):
+    sql = "SELECT * FROM Global_Court_Schedule WHERE 1=1"
+    params = []
+    if court_id:
+        sql += " AND court_id = ?"
+        params.append(court_id)
+    if date:
+        sql += " AND start_datetime LIKE ?"
+        params.append(f"{date}%")
+    sql += " ORDER BY start_datetime ASC"
+
+    con = get_connection()
+    try:
+        cursor = con.execute(sql, params)
+        return [dict(row) for row in cursor.fetchall()]
+    finally:
+        con.close()
 
 def get_filtered_schedule(court_id=None, date=None):
-    sql = "SELECT * FROM Global_Court_Schedule WHERE 1=1"
+    sql = "SELECT * FROM Global_Court_Schedule WHERE 1=1 AND start_datetime>= datetime('now')"
     params = []
     if court_id:
         sql += " AND court_id = ?"
@@ -295,25 +357,30 @@ def get_lesson_availability():
         con.close()
 
 def enroll_member_in_lesson(member_id, lesson_id, discount, amount, payment_method):
+    member_id = to_null(member_id)
+    lesson_id = to_null(lesson_id)
+    discount = to_null(discount)
+    amount = to_null(amount)
     con = get_connection()
     try:
+        if not payment_method: 
+            payment_method = "Cash"
         cur = con.cursor()
         cur.execute("INSERT INTO Payment (discount, payment_method, member_id) VALUES (?, ?, ?)", 
                     (discount, payment_method, member_id))
-        if discount=='1':
-            discount = 0.5
-        else: discount = 1
         payment_id = cur.lastrowid
         cur.execute("INSERT INTO Subscription (payment_id, cost) VALUES (?, ?)", 
                     (payment_id, amount))
-        cur.execute("INSERT INTO Subscription_concerning_Lesson (payment_id, lesson_id) VALUES (?, ?)", 
-                    (payment_id, lesson_id))
+        for lesson in lesson_id:
+            cur.execute("INSERT INTO Subscription_concerning_Lesson (payment_id, lesson_id) VALUES (?, ?)", 
+                        (payment_id, lesson))
         con.commit()
     except Exception as e:
         con.rollback()
         raise e
     finally:
         con.close()
+        return amount*discount
 
 def delete_orphan_payments():
     sql = """

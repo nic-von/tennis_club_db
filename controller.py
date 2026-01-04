@@ -1,10 +1,10 @@
 import sys
-from model_3 import (select_table, get_table_names,create_member, get_member, update_member_field,
+from model import (select_table, get_table_names,create_member, get_member, update_member_field,
     create_court, schedule_maintenance,create_tournament, create_match, record_match_result, get_upcoming_tournaments, register_member_to_tournament,
     get_filtered_schedule, get_financial_stats, get_member_stats,get_lesson_availability, enroll_member_in_lesson, delete_orphan_payments,
-    create_reservation, get_member_reservations, update_reservation
+    create_reservation, get_member_reservations, update_reservation, get_schedule
 )
-from view_3 import (
+from view import (
     show_header, show_table, show_schedule, show_menu, 
     show_success, show_error, show_member_details, show_stats, show_tournaments
 )
@@ -24,7 +24,7 @@ def admin_manage_members():
                 data = {
                     'first_name': input("Όνομα: "), 'last_name': input("Επώνυμο: "),
                     'phone': input("Τηλέφωνο: "), 'mail': input("Email: "),
-                    'address': input("Διεύθυνση: "), 'dob': input("Ημ. Γέννησης (YYYY-MM-DD): ")
+                    'address': input("Διεύθυνση: "), 'dob':input("Ημ. Γέννησης (YYYY-MM-DD): ")
                 }
                 mid = create_member(data['first_name'], data['last_name'], data['phone'], 
                                     data['mail'], data['address'], data['dob'])
@@ -69,7 +69,7 @@ def admin_manage_courts():
                 date = input("Ημερομηνία YYYY-MM-DD (Enter για όλες): ").strip()
                 cid = cid if cid else None
                 date = date if date else None
-                data = get_filtered_schedule(cid, date)
+                data = get_schedule(cid, date)
                 show_schedule(data)
         except Exception as e:
             show_error(e)
@@ -129,19 +129,27 @@ def menu_member():
             
             case '3':
                 try:
-                    cost = enroll_member_in_lesson(mid, input("ID Μαθήματος: "), input("Είσαι φοιτητής(0: Όχι, 1:Ναι): "), input("Ποσό πληρωμής:"), input("Τρόπος πληρωμής(Cash/Card):"))
-                    show_success("Εγγραφή επιτυχής! Kόστος?"(cost))
+                    lesson=1
+                    lesson_id=[]
+                    while lesson != 0:    
+                        lesson = int(input("ID Μαθήματος(0 για συνέχεια): "))
+                        if lesson !=0:
+                            lesson_id.append(lesson)
+                    discount= float(input("Ποσοστό έκτπωσης(0.5/1): "))
+                    amount = int( input("Ποσό πληρωμής:"))
+                    cost = str(enroll_member_in_lesson(mid, lesson_id, discount, amount , input("Τρόπος πληρωμής(Cash/Card):")))
+                    show_success("Εγγραφή επιτυχής! \n Κόστος: " +cost)
                 except Exception as e: show_error(e)
 
             case '4': # Νέα Λειτουργία: Κράτηση
                 try:
                     cid = input("ID Γηπέδου: ")
-                    date = input("Ημερομηνία (YYYY-MM-DD): ")
-                    start = input("Ώρα Έναρξης (HH:MM): ")
-                    end = input("Ώρα Λήξης (HH:MM): ")
+                    disc = float(input("Ποσοστό έκτπωσης(0.5/1): "))
+                    start = input("Ώρα Έναρξης (YYYY-MM-DD HH:MM): ")
+                    end = input("Ώρα Λήξης (YYYY-MM-DD HH:MM): ")
                     people = input("Αριθμός Ατόμων: ")
-                    create_reservation(mid, cid, date, start, end, people)
-                    show_success("Η κράτηση ολοκληρώθηκε!")
+                    create_reservation(mid, cid, disc, start, end, people, input("Τρόπος πληρωμής(Cash/Card):"))
+                    show_success("Η κράτηση ολοκληρώθηκε! Κόστος:" +str(15*disc))
                 except Exception as e: show_error(e)
 
             case '5': # Νέα Λειτουργία: Προβολή & Edit Κρατήσεων
@@ -152,22 +160,22 @@ def menu_member():
                         action = input("Θέλετε να τροποποιήσετε κράτηση; (y/n): ").lower()
                         if action == 'y':
                             rid = input("ID Κράτησης: ")
-                            ndate = input("Νέα Ημ/νία: ")
                             nstart = input("Νέα Έναρξη: ")
                             nend = input("Νέα Λήξη: ")
-                            update_reservation(rid, ndate, nstart, nend)
+                            update_reservation(rid, nstart, nend)
                             show_success("Η κράτηση ενημερώθηκε.")
                 except Exception as e: show_error(e)
 
-            case '6': # Νέα Λειτουργία: Τουρνουά
+            case '6': #΅Εγραφή σε Τουρνουά
                 try:
                     tours = get_upcoming_tournaments()
                     show_tournaments(tours)
                     if tours:
                         tid = input("Επιλέξτε ID Τουρνουά για εγγραφή (Enter για ακύρωση): ")
                         if tid:
-                            register_member_to_tournament(mid, tid)
-                            show_success("Εγγραφήκατε στο τουρνουά!")
+                            disc = float(input("Ποσοστό έκτπωσης(0.5/1): "))
+                            register_member_to_tournament(mid, tid, disc, input("Τρόπος πληρωμής(Cash/Card):"))
+                            show_success("Εγγραφήκατε στο τουρνουά! Κόστος:" +str(12*disc))
                 except Exception as e: show_error(e)
 
             case 'x': break
