@@ -5,7 +5,7 @@ Install & Run Guide 🎾
 1. Must have installed:
 Python 3.10
 
-2. System files
+2. System files:
 Make sure you have in the same folder:
 1)controller.py 
 2)model.py 
@@ -18,4 +18,4 @@ python controller.py
 
 4. Login:
 Admin Password: admin 
-Member Login: Member ID (e.g. 1, 2, κλπ.)
+Member Login: Member ID (e.g. 1, 2)
