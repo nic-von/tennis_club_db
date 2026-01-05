@@ -2,48 +2,101 @@ import sys
 from model import (select_table, get_table_names,create_member, get_member, update_member_field,
     create_court, schedule_maintenance,create_tournament, create_match, record_match_result, get_upcoming_tournaments, register_member_to_tournament,
     get_filtered_schedule, get_financial_stats, get_member_stats,get_lesson_availability, enroll_member_in_lesson, delete_orphan_payments,
-    create_reservation, get_member_reservations, update_reservation, get_schedule
+    create_reservation, get_member_reservations, update_reservation, get_schedule, get_member_age
 )
 from view import (
     show_header, show_table, show_schedule, show_menu, 
     show_success, show_error, show_member_details, show_stats, show_tournaments
 )
 
+DEFAULT_LESSON_COST = 20
+
 def admin_manage_members():
     while True:
-        show_header("ΔΙΑΧΕΙΡΙΣΗ ΜΕΛΩΝ")
+        show_header("ΔΙΑΧΕΙΡΙΣΗ ΜΕΛΩΝ (ADMIN ACTIONS)")
         print("1. Νέο Μέλος")
         print("2. Προβολή/Επεξεργασία Μέλους")
+        print("3. Εγγραφή Μέλους σε Μάθημα")
+        print("4. Κράτηση Γηπέδου για Μέλος")
+        print("5. Εγγραφή Μέλους σε Τουρνουά")
         print("0. Πίσω")
-        res = input("-> ").strip()
+        res = input("-> ").strip().lower()
         
-        if res == '0': break
-        
-        try:
-            if res == '1':
-                data = {
-                    'first_name': input("Όνομα: "), 'last_name': input("Επώνυμο: "),
-                    'phone': input("Τηλέφωνο: "), 'mail': input("Email: "),
-                    'address': input("Διεύθυνση: "), 'dob':input("Ημ. Γέννησης (YYYY-MM-DD): ")
-                }
-                mid = create_member(data['first_name'], data['last_name'], data['phone'], 
-                                    data['mail'], data['address'], data['dob'])
-                show_success(f"Μέλος δημιουργήθηκε με ID: {mid}")
-            
-            elif res == '2':
-                mid = input("Δώσε ID Μέλους: ")
-                member = get_member(mid)
-                show_member_details(member)
-                
-                print("Θέλεις να επεξεργαστείς πεδίο; (Enter για όχι)")
-                print("Πεδία: first_name, last_name, phone, mail, address, date_of_birth")
-                field = input("Πεδίο: ").strip()
-                if field:
-                    val = input(f"Νέα τιμή για {field}: ")
-                    update_member_field(mid, field, val)
-                    show_success("Ενημερώθηκε.")
-        except Exception as e:
-            show_error(e)
+        match res:
+            case '1':
+                try:
+                    data = {
+                        'first_name': input("Όνομα: "), 'last_name': input("Επώνυμο: "),
+                        'phone': input("Τηλέφωνο: "), 'mail': input("Email: "),
+                        'address': input("Διεύθυνση: "), 'dob': input("Ημ. Γέννησης (YYYY-MM-DD): ")
+                    }
+                    mid = create_member(data['first_name'], data['last_name'], data['phone'], 
+                                        data['mail'], data['address'], data['dob'])
+                    show_success(f"Μέλος δημιουργήθηκε με ID: {mid}")
+                except Exception as e: show_error(e)
+            # --- 2. Επεξεργασία Μέλους ---
+            case '2':
+                try:
+                    mid = input("Δώσε ID Μέλους: ")
+                    if mid:
+                        member = get_member(mid)
+                        show_member_details(member)
+                        print("Θέλεις να επεξεργαστείς πεδίο; (Enter για όχι)")
+                        field = input("Πεδίο (first_name, phone, etc): ")
+                        if field:
+                            val = input(f"Νέα τιμή για {field}: ")
+                            update_member_field(mid, field, val)
+                            show_success("Ενημερώθηκε.")
+                except Exception as e: show_error(e)
+            # --- 3. Εγγραφή σε Μάθημα (Admin Mode) ---
+            case '3':
+                try:
+                    show_header("ΕΓΓΡΑΦΗ ΣΕ ΜΑΘΗΜΑ (ADMIN)")
+                    mid = input("ID Μέλους: ").strip()
+                    lesson=1
+                    lesson_id=[]
+                    while lesson != 0:    
+                        lesson = int(input("ID Μαθήματος(0 για συνέχεια): "))
+                        if lesson !=0:
+                            lesson_id.append(lesson)
+                    if lesson_id and mid:
+                        age = get_member_age(mid)
+                        if age<26:
+                            discount = 0.5
+                        else: discount = 1
+                        amount = DEFAULT_LESSON_COST * len(lesson_id)
+                        cost = str(enroll_member_in_lesson(mid, lesson_id, discount, amount, input("Τρόπος πληρωμής(Cash/Card):")))
+                        show_success(f"Το μέλος {mid} εγγράφηκε στο μάθημα {lesson_id}.")
+                        show_success("Εγγραφή επιτυχής! \n Κόστος: " +cost)
+                except Exception as e: show_error(e)
+            # --- 4. Κράτηση Γηπέδου (Admin Mode) ---
+            case '4':
+                try:
+                    show_header("ΚΡΑΤΗΣΗ ΓΗΠΕΔΟΥ (ADMIN)")
+                    mid = input("ID Μέλους: ")
+                    cid = input("ID Γηπέδου: ")
+                    disc = float(input("Ποσοστό έκτπωσης(0.5/1): "))
+                    start = input("Ώρα Έναρξης (YYYY-MM-DD HH:MM): ")
+                    end = input("Ώρα Λήξης (YYYY-MM-DD HH:MM): ")
+                    people = input("Αριθμός Ατόμων: ")
+                    create_reservation(mid, cid, disc, start, end, people, input("Τρόπος πληρωμής(Cash/Card):"))
+                    show_success("Η κράτηση ολοκληρώθηκε! Κόστος:" +str(15*disc))
+                    show_success(f"Η κράτηση για το μέλος {mid} ολοκληρώθηκε.")
+                except Exception as e: show_error(e)
+            # --- 5. Εγγραφή σε Τουρνουά (Admin Mode) ---
+            case '5':
+                try:
+                    show_header("ΕΓΓΡΑΦΗ ΣΕ TOYPNOYA (ADMIN)")
+                    mid = input("ID Μέλους: ")
+                    tid = input("ID Τουρνουά: ")
+                    age = get_member_age(mid)
+                    if age<26:
+                        discount = 0.5
+                    else: discount = 1
+                    register_member_to_tournament(mid, tid, discount)
+                    show_success(f"Το μέλος {mid} εγγράφηκε στο τουρνουά {tid}.")
+                except Exception as e: show_error(e)
+            case '0': break
 
 def admin_manage_courts():
     while True:
@@ -135,24 +188,31 @@ def menu_member():
                         lesson = int(input("ID Μαθήματος(0 για συνέχεια): "))
                         if lesson !=0:
                             lesson_id.append(lesson)
-                    discount= float(input("Ποσοστό έκτπωσης(0.5/1): "))
-                    amount = int( input("Ποσό πληρωμής:"))
-                    cost = str(enroll_member_in_lesson(mid, lesson_id, discount, amount , input("Τρόπος πληρωμής(Cash/Card):")))
-                    show_success("Εγγραφή επιτυχής! \n Κόστος: " +cost)
+                    if lesson_id:
+                        age = get_member_age(mid)
+                        if age<26:
+                            discount = 0.5
+                        else: discount = 1
+                        amount = DEFAULT_LESSON_COST * len(lesson_id)
+                        cost = str(enroll_member_in_lesson(mid, lesson_id, discount, amount , input("Τρόπος πληρωμής(Cash/Card):")))
+                        show_success("Εγγραφή επιτυχής! \n Κόστος: " +cost)
                 except Exception as e: show_error(e)
 
-            case '4': # Νέα Λειτουργία: Κράτηση
+            case '4': # Λειτουργία: Κράτηση
                 try:
                     cid = input("ID Γηπέδου: ")
-                    disc = float(input("Ποσοστό έκτπωσης(0.5/1): "))
+                    age = get_member_age(mid)
+                    if age<26:
+                        discount = 0.5
+                    else: discount = 1
                     start = input("Ώρα Έναρξης (YYYY-MM-DD HH:MM): ")
                     end = input("Ώρα Λήξης (YYYY-MM-DD HH:MM): ")
                     people = input("Αριθμός Ατόμων: ")
-                    create_reservation(mid, cid, disc, start, end, people, input("Τρόπος πληρωμής(Cash/Card):"))
-                    show_success("Η κράτηση ολοκληρώθηκε! Κόστος:" +str(15*disc))
+                    create_reservation(mid, cid, discount, start, end, people, input("Τρόπος πληρωμής(Cash/Card):"))
+                    show_success("Η κράτηση ολοκληρώθηκε! Κόστος:" +str(15*discount))
                 except Exception as e: show_error(e)
 
-            case '5': # Νέα Λειτουργία: Προβολή & Edit Κρατήσεων
+            case '5': # Λειτουργία: Προβολή & Edit Κρατήσεων
                 try:
                     my_res = get_member_reservations(mid)
                     show_table(my_res)
@@ -166,16 +226,19 @@ def menu_member():
                             show_success("Η κράτηση ενημερώθηκε.")
                 except Exception as e: show_error(e)
 
-            case '6': #΅Εγραφή σε Τουρνουά
+            case '6': #Εγραφή σε Τουρνουά
                 try:
                     tours = get_upcoming_tournaments()
                     show_tournaments(tours)
                     if tours:
                         tid = input("Επιλέξτε ID Τουρνουά για εγγραφή (Enter για ακύρωση): ")
                         if tid:
-                            disc = float(input("Ποσοστό έκτπωσης(0.5/1): "))
-                            register_member_to_tournament(mid, tid, disc, input("Τρόπος πληρωμής(Cash/Card):"))
-                            show_success("Εγγραφήκατε στο τουρνουά! Κόστος:" +str(12*disc))
+                            age = get_member_age(mid)
+                            if age<26:
+                                discount = 0.5
+                            else: discount = 1
+                            register_member_to_tournament(mid, tid, discount, input("Τρόπος πληρωμής(Cash/Card):"))
+                            show_success("Εγγραφήκατε στο τουρνουά! Κόστος:" +str(12*discount))
                 except Exception as e: show_error(e)
 
             case 'x': break
@@ -185,7 +248,7 @@ def menu_admin():
     while True:
         show_header("TENNIS CLUB - ADMIN")
         options = {
-            "1": "Διαχείριση Μελών (CRUD)",
+            "1": "Διαχείριση Μελών",
             "2": "Διαχείριση Γηπέδων & Προγράμματος",
             "3": "Διαχείριση Τουρνουά",
             "4": "Οικονομικά & Στατιστικά",

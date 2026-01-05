@@ -71,6 +71,26 @@ def get_member(member_id):
     finally:
         con.close()
 
+from datetime import datetime
+
+def get_member_age(member_id):
+    con = get_connection()
+    try:
+        # 1. Παίρνουμε την ημερομηνία γέννησης (date_of_birth) 
+        cur = con.execute("SELECT date_of_birth FROM Member WHERE member_id = ?", (member_id,))
+        row = cur.fetchone()
+        if not row: 
+            raise LookupError("Το μέλος δεν βρέθηκε για τον υπολογισμό ηλικίας.")
+        dob_str = row['date_of_birth'] 
+        birth_date = datetime.strptime(dob_str, "%Y-%m-%d")
+        today = datetime.now() 
+        age = today.year - birth_date.year
+        if (today.month, today.day) < (birth_date.month, birth_date.day):
+            age -= 1
+        return age
+    finally:
+        con.close()
+
 def update_member_field(member_id, field, value):
     allowed_fields = {'first_name', 'last_name', 'phone', 'mail', 'address', 'date_of_birth'}
     if field not in allowed_fields:
